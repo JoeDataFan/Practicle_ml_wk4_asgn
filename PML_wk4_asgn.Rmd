@@ -1,0 +1,27 @@
+---
+title: "Untitled"
+author: "Joe Rubash"
+date: "September 11, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# clear environment
+rm(list = ls())
+
+# load required libraries
+library(readxl)
+library(tidyverse)
+library(caret)
+library(randomForest)
+
+# load in data
+data.train <- read.csv("./Data/pml-training.csv")
+
+# look at structure of data
+str(data.train)
+
+## how many NAs in each column
+map(data.train, ~ sum(is.na(.x)))
+
+```
