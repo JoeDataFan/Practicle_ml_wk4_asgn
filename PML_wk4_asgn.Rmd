@@ -1,4 +1,9 @@
 ---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+,---
 title: "Untitled"
 author: "Joe Rubash"
 date: "September 11, 2018"
@@ -16,12 +21,52 @@ library(caret)
 library(randomForest)
 
 # load in data
-data.train <- read.csv("./Data/pml-training.csv")
+data.train <- read.csv("./Data/pml-training.csv",
+                       na.strings = c("", "NA", "#DIV/0!"),
+                       stringsAsFactors = F)
 
 # look at structure of data
 str(data.train)
 
 ## how many NAs in each column
-map(data.train, ~ sum(is.na(.x)))
+t(map_df(data.train, ~ sum(is.na(.x))))
+
+# remove variable with mor than 19000 NAs
+data.train.sub <- data.train[, c(which(map_df(data.train, ~ sum(is.na(.x)))[1,] < 19,000))]
+
+dim(data.train.sub) 
+
+str(data.train.sub)
+
+# correct col class
+num <- names(data.train.sub)[c(3,4,7:59)]
+
+data.train.sub[,num] <- data.train.sub %>% 
+        select(one_of(num)) %>% 
+        map(as.character) %>% 
+        map(as.numeric)
+
+# find dates with month or day in front then convert to date.time then combine
+data.train.sub.mdy <- data.train.sub %>% 
+        filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) <= 12) %>% 
+        mutate(cvtd_timestamp = lubridate::mdy_hm(cvtd_timestamp))
+
+data.train.sub.dmy <- data.train.sub %>% 
+        filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) > 12)%>% 
+        mutate(cvtd_timestamp = lubridate::dmy_hm(cvtd_timestamp))
+
+data.train.sub <- rbind(data.train.sub.dmy, data.train.sub.mdy)
 
 ```
+```{r}
+# make histograms of each variable
+nms <- names(data.train.sub)
+
+for(i in seq_along(nms)){
+        windows()
+        p <- ggplot(data.train.sub, aes_string(x = nms[i]))+
+                geom_histogram()
+        print(p)
+}
+```
+
