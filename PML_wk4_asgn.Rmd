@@ -10,7 +10,7 @@ date: "September 11, 2018"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r Setup, include=FALSE}
 # clear environment
 rm(list = ls())
 
@@ -28,17 +28,25 @@ data.train <- read.csv("./Data/pml-training.csv",
 # look at structure of data
 str(data.train)
 
+# type and number of sensors by location
+sensors <- data.frame(arm = sum(str_detect(string = names(data.train), pattern = "(?<!e)arm")),
+                      forearm = sum(str_detect(string = names(data.train), pattern = "forearm")), 
+                      dumbbell = sum(str_detect(string = names(data.train), pattern = "dumbbell")),
+                      belt = sum(str_detect(string = names(data.train), pattern = "belt"))
+)
 ## how many NAs in each column
 t(map_df(data.train, ~ sum(is.na(.x))))
 
 # remove variable with mor than 19000 NAs
 data.train.sub <- data.train[, c(which(map_df(data.train, ~ sum(is.na(.x)))[1,] < 19,000))]
 
-dim(data.train.sub) 
+dim(data.train.sub) # dimensions of resulting data set
 
-str(data.train.sub)
+str(data.train.sub) # structure of subsetted data
 
-# correct col class
+table(data.train.sub$classe) # number of observations per classe
+
+# correct variable class
 num <- names(data.train.sub)[c(3,4,7:59)]
 
 data.train.sub[,num] <- data.train.sub %>% 
@@ -57,15 +65,51 @@ data.train.sub.dmy <- data.train.sub %>%
 
 data.train.sub <- rbind(data.train.sub.dmy, data.train.sub.mdy)
 
+# calculate variance for each numeric variable
+test <- data.train.sub[-c(1,2,5,6,60)] %>% 
+        map_df(var) %>% 
+        t() %>% 
+        as.data.frame(.) %>% 
+        mutate(col.names = row.names(.)) %>% 
+        arrange(V1)
+
+# determine sensor types in subsetted data
+sensors.sub <- data.frame(arm = sum(str_detect(string = names(data.train.sub), pattern = "(?<!e)arm")),
+                      forearm = sum(str_detect(string = names(data.train.sub), pattern = "forearm")), 
+                      dumbbell = sum(str_detect(string = names(data.train.sub), pattern = "dumbbell")),
+                      belt = sum(str_detect(string = names(data.train.sub), pattern = "belt"))
+)
+
+## Todo================
+# understand structure of data-----------------
+# remove variables with low variance-------------------
+# Determine good methods for cross validation-------------------
+# try random forest -----------------------
+# rename classe levels from A, B, C, D, E to readable categories-------------------
+# create plots of raw data-------
+# deal with outliers... perhaps replace with mean of classe---------------------
+# - total_accel_forearm
+# - gyros_dumbbell_x
+# - gyros_dumbbell_y
+# - gyros_dumbbell_z
+# - magnet_dumbbell_y
+# - gyros_forearm_x
+# - gyros_forearm_y
+# - gyros_forearm_z
+
+
 ```
 ```{r}
-# make histograms of each variable
-nms <- names(data.train.sub)
+# make boxplots of each variable by classe to look for outliers and anthing unusual
+nms <- names(data.train.sub[-c(1,2,5,6,60)])
 
 for(i in seq_along(nms)){
         windows()
-        p <- ggplot(data.train.sub, aes_string(x = nms[i]))+
-                geom_histogram()
+        p <- ggplot(data.train.sub,
+                    aes_string(x = "classe",
+                               y = nms[i],
+                               fill = "classe"))+
+                geom_boxplot()
         print(p)
 }
 ```
