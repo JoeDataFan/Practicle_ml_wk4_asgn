@@ -1,16 +1,25 @@
 ---
-output: html_document
-editor_options: 
-  chunk_output_type: console
----
-,---
 title: "Untitled"
 author: "Joe Rubash"
 date: "September 11, 2018"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
-```{r Setup, include=FALSE}
+
+# Todo================
+- try random forest 
+- rename classe levels from A, B, C, D, E to readable categories
+
+- show measures of accuracy in bar plots... perhaps
+- try stacked models to get best accuracy
+- show decision tree?
+- show clustering?
+
+
+
+```{r Prepare training data, include=FALSE}
 # clear environment
 rm(list = ls())
 
@@ -19,32 +28,16 @@ library(readxl)
 library(tidyverse)
 library(caret)
 library(randomForest)
+library(parallel)
+library(doParallel)
 
 # load in data
 data.train <- read.csv("./Data/pml-training.csv",
                        na.strings = c("", "NA", "#DIV/0!"),
                        stringsAsFactors = F)
 
-# look at structure of data
-str(data.train)
-
-# type and number of sensors by location
-sensors <- data.frame(arm = sum(str_detect(string = names(data.train), pattern = "(?<!e)arm")),
-                      forearm = sum(str_detect(string = names(data.train), pattern = "forearm")), 
-                      dumbbell = sum(str_detect(string = names(data.train), pattern = "dumbbell")),
-                      belt = sum(str_detect(string = names(data.train), pattern = "belt"))
-)
-## how many NAs in each column
-t(map_df(data.train, ~ sum(is.na(.x))))
-
 # remove variable with mor than 19000 NAs
 data.train.sub <- data.train[, c(which(map_df(data.train, ~ sum(is.na(.x)))[1,] < 19,000))]
-
-dim(data.train.sub) # dimensions of resulting data set
-
-str(data.train.sub) # structure of subsetted data
-
-table(data.train.sub$classe) # number of observations per classe
 
 # correct variable class
 num <- names(data.train.sub)[c(3,4,7:59)]
@@ -63,7 +56,72 @@ data.train.sub.dmy <- data.train.sub %>%
         filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) > 12)%>% 
         mutate(cvtd_timestamp = lubridate::dmy_hm(cvtd_timestamp))
 
+# recombine data
 data.train.sub <- rbind(data.train.sub.dmy, data.train.sub.mdy)
+
+# replace outlierw with mean value
+data.train.sub$total_accel_forearm[data.train.sub$total_accel_forearm > 90] <- 
+        mean(data.train.sub$total_accel_forearm[data.train.sub$classe == "A"], na.rm = T)
+      
+data.train.sub$gyros_forearm_z[data.train.sub$gyros_forearm_z > 50] <- 
+        mean(data.train.sub$gyros_forearm_z[data.train.sub$classe == "A"], na.rm = T)
+
+data.train.sub$gyros_forearm_y[data.train.sub$gyros_forearm_y > 50] <- 
+        mean(data.train.sub$gyros_forearm_y[data.train.sub$classe == "A"], na.rm = T)
+
+data.train.sub$gyros_forearm_x[data.train.sub$gyros_forearm_x < -10] <- 
+        mean(data.train.sub$gyros_forearm_x[data.train.sub$classe == "A"], na.rm = T)
+
+data.train.sub$magnet_dumbbell_y[data.train.sub$magnet_dumbbell_y < -1000] <- 
+        mean(data.train.sub$magnet_dumbbell_y[data.train.sub$classe == "B"], na.rm = T)
+
+data.train.sub$gyros_dumbbell_z[data.train.sub$gyros_dumbbell_z > 90] <- 
+        mean(data.train.sub$gyros_dumbbell_z[data.train.sub$classe == "A"], na.rm = T)
+
+data.train.sub$gyros_dumbbell_y[data.train.sub$gyros_dumbbell_y > 20] <- 
+        mean(data.train.sub$gyros_dumbbell_y[data.train.sub$classe == "A"], na.rm = T)
+
+data.train.sub$gyros_dumbbell_x[data.train.sub$gyros_dumbbell_x < -50] <- 
+        mean(data.train.sub$gyros_dumbbell_x[data.train.sub$classe == "A"], na.rm = T)
+
+# look for and remove columns with near zero variance
+nzv_cols <- nearZeroVar(data.train.sub)
+if(length(nzv_cols) > 0) data.train.sub <- data.train.sub[, -nzv_cols]
+
+# remove the first 5 columns as "X" describes classe perfectly and the other 
+# variables are not needed to predict classe or at least should not be used
+# to predict proper lifting (classe)
+data.train.sub <- data.train.sub[, -c(1:7)]
+
+# create validation test set from training data
+#in.valid <- createDataPartition(data.train.sub$classe, p = 0.75, list = T)[[1]]
+#training <- data.train.sub[in.valid,]
+#valid <- data.train.sub[-in.valid,]
+
+```
+```{r Scripts to look at structure and clean data, eval=FALSE, include=FALSE}
+# look at structure of data
+str(data.train)
+
+table(data.train$classe) # number of observations per classe
+
+# type and number of sensors by location
+sensors <- data.frame(arm = sum(str_detect(string = names(data.train), pattern = "(?<!e)arm")),
+                      forearm = sum(str_detect(string = names(data.train), pattern = "forearm")), 
+                      dumbbell = sum(str_detect(string = names(data.train), pattern = "dumbbell")),
+                      belt = sum(str_detect(string = names(data.train), pattern = "belt"))
+)
+
+# how many NAs in each column
+t(map_df(data.train, ~ sum(is.na(.x))))
+
+dim(data.train.sub) # dimensions of resulting data set
+
+str(data.train.sub) # structure of subsetted data
+
+table(data.train.sub$classe) # number of observations per classe
+
+str(data.train.sub)
 
 # calculate variance for each numeric variable
 test <- data.train.sub[-c(1,2,5,6,60)] %>% 
@@ -80,28 +138,9 @@ sensors.sub <- data.frame(arm = sum(str_detect(string = names(data.train.sub), p
                       belt = sum(str_detect(string = names(data.train.sub), pattern = "belt"))
 )
 
-## Todo================
-# understand structure of data-----------------
-# remove variables with low variance-------------------
-# Determine good methods for cross validation-------------------
-# try random forest -----------------------
-# rename classe levels from A, B, C, D, E to readable categories-------------------
-# create plots of raw data-------
-# deal with outliers... perhaps replace with mean of classe---------------------
-# - total_accel_forearm
-# - gyros_dumbbell_x
-# - gyros_dumbbell_y
-# - gyros_dumbbell_z
-# - magnet_dumbbell_y
-# - gyros_forearm_x
-# - gyros_forearm_y
-# - gyros_forearm_z
-
-
-```
-```{r}
-# make boxplots of each variable by classe to look for outliers and anthing unusual
-nms <- names(data.train.sub[-c(1,2,5,6,60)])
+# look at data in boxplots to identify outliers
+#nms <- names(data.train.sub[-c(1,2,5,6,60)])
+nms <- names(data.train.sub[c(38:40, 45, 51:53)])
 
 for(i in seq_along(nms)){
         windows()
@@ -112,5 +151,135 @@ for(i in seq_along(nms)){
                 geom_boxplot()
         print(p)
 }
+
+ggplot(data.train.sub, aes(x = X, y = classe))+
+        geom_point()
+
+# look for highly correlated variables
+M <- abs(cor(data.train.sub[,-52]))
+diag(M) <- 0
+which(M > 0.8, arr.ind = T)
+
+```
+```{r model training}
+# prepare for multicore use during model building
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+# alter specific parameters for random forest model training
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           allowParallel = TRUE)
+
+# determine principle components
+preproc.train <- preProcess(data.train.sub, method = "pca")
+
+# predictions from PCA
+pred.train.pc <- predict(preproc.train, data.train.sub)
+
+# create random forest model
+rf.mod <- train(classe ~ . ,
+                method ="rf",
+                trControl = fitControl,
+                data = pred.train.pc)
+
+# return R to single core processing
+stopCluster(cluster)
+registerDoSEQ()
+
+# look at quality of model
+rf.mod
+rf.mod$resample
+confusionMatrix.train(rf.mod)
+
+# predict with validation data set
+#pred.rf <- predict(rf.mod, valid)
+
+# check accuracy of random forest model on validation set
+#confusionMatrix(pred.rf, as.factor(valid$classe))
+```
+```{r prepare testing data to run through model}
+# load in data
+data.test <- read.csv("./Data/pml-testing.csv",
+                       na.strings = c("", "NA", "#DIV/0!"),
+                       stringsAsFactors = F)
+
+# remove variable with mor than 19000 NAs found in training set
+train.na.rm <- which(map_df(data.train, ~ sum(is.na(.x)))[1,] < 19,000)
+data.test.sub <- data.test[, train.na.rm]
+
+# correct variable class
+num <- names(data.test.sub)[c(3,4,7:59)]
+
+data.test.sub[,num] <- data.test.sub %>% 
+        select(one_of(num)) %>% 
+        map(as.character) %>% 
+        map(as.numeric)
+
+# find dates with month or day in front then convert to date.time then combine
+data.test.sub.mdy <- data.test.sub %>% 
+        filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) <= 12) %>% 
+        mutate(cvtd_timestamp = lubridate::mdy_hm(cvtd_timestamp))
+
+data.test.sub.dmy <- data.test.sub %>% 
+        filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) > 12)%>% 
+        mutate(cvtd_timestamp = lubridate::dmy_hm(cvtd_timestamp))
+
+# recombine data
+data.test.sub <- rbind(data.test.sub.dmy, data.test.sub.mdy)
+
+# replace outlierw with mean value
+data.test.sub$total_accel_forearm[data.test.sub$total_accel_forearm > 90] <- 
+        mean(data.test.sub$total_accel_forearm[data.test.sub$classe == "A"], na.rm = T)
+      
+data.test.sub$gyros_forearm_z[data.test.sub$gyros_forearm_z > 50] <- 
+        mean(data.test.sub$gyros_forearm_z[data.test.sub$classe == "A"], na.rm = T)
+
+data.test.sub$gyros_forearm_y[data.test.sub$gyros_forearm_y > 50] <- 
+        mean(data.test.sub$gyros_forearm_y[data.test.sub$classe == "A"], na.rm = T)
+
+data.test.sub$gyros_forearm_x[data.test.sub$gyros_forearm_x < -10] <- 
+        mean(data.test.sub$gyros_forearm_x[data.test.sub$classe == "A"], na.rm = T)
+
+data.test.sub$magnet_dumbbell_y[data.test.sub$magnet_dumbbell_y < -1000] <- 
+        mean(data.test.sub$magnet_dumbbell_y[data.test.sub$classe == "B"], na.rm = T)
+
+data.test.sub$gyros_dumbbell_z[data.test.sub$gyros_dumbbell_z > 90] <- 
+        mean(data.test.sub$gyros_dumbbell_z[data.test.sub$classe == "A"], na.rm = T)
+
+data.test.sub$gyros_dumbbell_y[data.test.sub$gyros_dumbbell_y > 20] <- 
+        mean(data.test.sub$gyros_dumbbell_y[data.test.sub$classe == "A"], na.rm = T)
+
+data.test.sub$gyros_dumbbell_x[data.test.sub$gyros_dumbbell_x < -50] <- 
+        mean(data.test.sub$gyros_dumbbell_x[data.test.sub$classe == "A"], na.rm = T)
+
+# remove same columns with near zero variance found in training set
+nzv_cols <- nearZeroVar(data.train.sub)
+if(length(nzv_cols) > 0) data.test.sub <- data.test.sub[, -nzv_cols]
+
+# remove the first 5 columns as "X" describes classe perfectly and the other 
+# variables are not needed to predict classe or at least should not be used
+# to predict proper lifting (classe)
+data.test.sub <- data.test.sub[, -c(1:7)]
+
+```
+```{r run test data through training model}
+# predictions from PCA (important to use preprocessed PCA object from training data)
+pred.test.pc <- predict(preproc.train, data.test.sub)
+
+# predict with validation data set
+pred.test.rf <- predict(rf.mod, pred.test.pc)
+
+print(pred.test.rf)
 ```
 
+
+
+# Summary:
+
+# Methods:
+
+
+# Results:
+
+# Discussion:
