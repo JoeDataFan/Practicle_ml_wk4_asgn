@@ -131,7 +131,7 @@ $(document).ready(function () {
 
 <div id="summary" class="section level2">
 <h2>Summary:</h2>
-<p>Health and fitness trackers in the form of sensors worn on the body have become a common part of our lives. These devices often track what we are doing and how often, which leads to gentle reminders to do those healthy activities more often. However, to date, these devices do not tell us how well we are performing the given physical activity. For instance, it would be good to know if you are lifting weights using correct form as incorrectly lifting even lite weights can lead to injury. The purpose of the this data analysis was to determine if data from body sensors could be used to correctly identify when a wieght lifter was lifting incorrectly as described by 5 common mistakes.</p>
+<p>Health and fitness trackers in the form of sensors worn on the body have become a common part of our lives. These devices often track what we are doing and how often, which leads to gentle reminders to do those healthy activities more often. However, to date, these devices do not tell us how well we are performing the given physical activity. For instance, it would be good to know if you are lifting weights using correct form as incorrectly lifting even lite weights can lead to injury. The purpose of the this data analysis was to determine if data from body sensors could be used to correctly identify when a wieght lifter was lifting incorrectly as described by 5 common mistakes. With careful selection of features to include in the random forest model fairly good prediction (1.67% out of sample error) of correct or incorrect lifting technigues could be determined.</p>
 </div>
 <div id="methods" class="section level2">
 <h2>Methods:</h2>
@@ -181,13 +181,13 @@ registerDoSEQ()</code></pre>
 ## Pre-processing: principal component signal extraction (51), centered
 ##  (51), scaled (51) 
 ## Resampling: Cross-Validated (5 fold) 
-## Summary of sample sizes: 15696, 15698, 15697, 15699, 15698 
+## Summary of sample sizes: 15699, 15698, 15696, 15698, 15697 
 ## Resampling results across tuning parameters:
 ## 
 ##   mtry  Accuracy   Kappa    
-##    2    0.9806341  0.9755008
-##   26    0.9727351  0.9655055
-##   51    0.9728879  0.9657007
+##    2    0.9804810  0.9753056
+##   26    0.9737540  0.9667971
+##   51    0.9719195  0.9644747
 ## 
 ## Accuracy was used to select the optimal model using the largest value.
 ## The final value used for the model was mtry = 2.</code></pre>
@@ -198,14 +198,14 @@ registerDoSEQ()</code></pre>
 ##                      Number of trees: 500
 ## No. of variables tried at each split: 2
 ## 
-##         OOB estimate of  error rate: 1.68%
+##         OOB estimate of  error rate: 1.57%
 ## Confusion matrix:
 ##      A    B    C    D    E class.error
-## A 5561    8    5    6    0 0.003405018
-## B   49 3708   38    1    1 0.023439558
-## C    4   39 3348   29    2 0.021624781
-## D    3    0   93 3115    5 0.031405473
-## E    1   12   16   17 3561 0.012752980</code></pre>
+## A 5561    9    7    3    0 0.003405018
+## B   45 3717   34    1    0 0.021069265
+## C    3   39 3359   18    3 0.018410286
+## D    3    0   96 3112    5 0.032338308
+## E    0   12   15   16 3564 0.011921264</code></pre>
 </div>
 <div id="testing-newdata" class="section level3">
 <h3>Testing Newdata:</h3>
