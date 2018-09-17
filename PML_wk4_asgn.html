@@ -141,11 +141,34 @@ $(document).ready(function () {
 </div>
 <div id="feature-selection" class="section level3">
 <h3>Feature Selection:</h3>
-<p>A great deal of time and care was taken to select the most appropriate features to train the prediction model. After reviewing the structure, distribution and nature of the data the following features were removed: - Several columns contained over 90% NAs. These columns were removed. - The first 7 columns containing test index, user name and time stamps perfectly predicted the outcome due to study design which was not the goal of this study. These columns were removed to focus on the data from the sensors as intended. - By reviewing box plots colored by class for each remaining variable I was able to identify outliers and replace them with the mean value for the classe. - the nearZeroVar function from the Caret package was also used to remove variables with very little change in values and or those with a high occurance of a single value.</p>
+<p>A great deal of time and care was taken to select the most appropriate features to train the prediction model. After reviewing the structure, distribution and nature of the data the following features were removed:<br />
+- Several columns contained over 90% NAs. These columns were removed.<br />
+- The first 7 columns containing test index, user name and time stamps perfectly predicted the outcome due to study design which was not the goal of this study. These columns were removed to focus on the data from the sensors as intended.<br />
+- By reviewing box plots colored by class for each remaining variable I was able to identify outliers and replace them with the mean value for the classe.<br />
+- the nearZeroVar function from the Caret package was also used to remove variables with very little change in values and or those with a high occurance of a single value.</p>
 </div>
 <div id="training-data-model-creation" class="section level3">
 <h3>Training Data (Model creation):</h3>
 <p>With the training data features pruned from 160 to 52 the data was fed into the train function from the Caret package using the following code:</p>
+<pre class="r"><code># prepare for multicore use during model building
+cluster &lt;- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+# alter specific parameters for random forest model training
+fitControl &lt;- trainControl(method = &quot;cv&quot;,
+                           number = 5,
+                           allowParallel = TRUE)
+
+# create random forest model
+rf.mod &lt;- train(classe ~ . ,
+                method =&quot;rf&quot;,
+                trControl = fitControl,
+                preProcess=c(&quot;pca&quot;),
+                data = data.train.sub)
+
+# return R to single core processing
+stopCluster(cluster)
+registerDoSEQ()</code></pre>
 <p>From the code you can see that a random forest method was used with 5 K-fold cross validation to help determine potential out of sample error. The selected features were also preprocessed through Principle Component Analysis as well to help reduce noise due to multicollinearity. A random forest method was used as it seemed like the easiest most robust method described in the lectures. However, creation of the trees took a great deal of time approximately 30 minutes on a single CPU core. The use of multiple CPU cores during tree creation dramatically reduced processing time to approximately 5 minutes. Methods to allow parallel processing came from the following mentor:</p>
 <p><a href="https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md" class="uri">https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md</a>. Thank you.</p>
 <p>The summary below from the final model shows that the out of bag (out of sample) estimate of error was 1.67%</p>
@@ -158,13 +181,13 @@ $(document).ready(function () {
 ## Pre-processing: principal component signal extraction (51), centered
 ##  (51), scaled (51) 
 ## Resampling: Cross-Validated (5 fold) 
-## Summary of sample sizes: 15698, 15698, 15698, 15696, 15698 
+## Summary of sample sizes: 15696, 15698, 15697, 15699, 15698 
 ## Resampling results across tuning parameters:
 ## 
 ##   mtry  Accuracy   Kappa    
-##    2    0.9787991  0.9731779
-##   26    0.9727344  0.9655026
-##   51    0.9728874  0.9656987
+##    2    0.9806341  0.9755008
+##   26    0.9727351  0.9655055
+##   51    0.9728879  0.9657007
 ## 
 ## Accuracy was used to select the optimal model using the largest value.
 ## The final value used for the model was mtry = 2.</code></pre>
@@ -178,11 +201,11 @@ $(document).ready(function () {
 ##         OOB estimate of  error rate: 1.68%
 ## Confusion matrix:
 ##      A    B    C    D    E class.error
-## A 5561    8    6    4    1 0.003405018
-## B   50 3714   32    1    0 0.021859363
-## C    6   36 3352   23    5 0.020455874
-## D    1    1   99 3109    6 0.033271144
-## E    2   14   17   17 3557 0.013861935</code></pre>
+## A 5561    8    5    6    0 0.003405018
+## B   49 3708   38    1    1 0.023439558
+## C    4   39 3348   29    2 0.021624781
+## D    3    0   93 3115    5 0.031405473
+## E    1   12   16   17 3561 0.012752980</code></pre>
 </div>
 <div id="testing-newdata" class="section level3">
 <h3>Testing Newdata:</h3>
