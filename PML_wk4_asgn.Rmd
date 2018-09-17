@@ -174,7 +174,7 @@ t(map_df(data.train.sub, ~ sum(.x == 0)))
 ## Summary:
 Health and fitness trackers in the form of sensors worn on the body have become a
 common part of our lives. These devices often track what we are doing and how often,
-which leads to gentle reminders to do those healthy activities more often. However, to date, these devices do not tell us how well we are performing the given physical activity. For instance, it would be good to know if you are lifting weights using correct form as incorrectly lifting even lite weights can lead to injury. The purpose of the this data analysis was to determine if data from body sensors could be used to correctly identify when a wieght lifter was lifting incorrectly as described by 5 common mistakes.
+which leads to gentle reminders to do those healthy activities more often. However, to date, these devices do not tell us how well we are performing the given physical activity. For instance, it would be good to know if you are lifting weights using correct form as incorrectly lifting even lite weights can lead to injury. The purpose of the this data analysis was to determine if data from body sensors could be used to correctly identify when a wieght lifter was lifting incorrectly as described by 5 common mistakes. With careful selection of features to include in the random forest model fairly good prediction (1.67% out of sample error) of correct or incorrect lifting technigues could be determined.
 
 ## Methods:
 ### Study Design:
