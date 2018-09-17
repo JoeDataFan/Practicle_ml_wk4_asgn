@@ -181,16 +181,16 @@ which leads to gentle reminders to do those healthy activities more often. Howev
 Accelerometers were placed on the belt, forearm, arm, and dumbell of 6 participants. The participants then performed barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
 ### Feature Selection:
-A great deal of time and care was taken to select the most appropriate features to train the prediction model. After reviewing the structure, distribution and nature of the data the following features were removed:
-- Several columns contained over 90% NAs. These columns were removed.
-- The first 7 columns containing test index, user name and time stamps perfectly predicted the outcome due to study design which was not the goal of this study. These columns were removed to focus on the data from the sensors as intended.
-- By reviewing box plots colored by class for each remaining variable I was able to identify outliers and replace them with the mean value for the classe.
-- the nearZeroVar function from the Caret package was also used to remove variables with very little change in values and or those with a high occurance of a single value.
+A great deal of time and care was taken to select the most appropriate features to train the prediction model. After reviewing the structure, distribution and nature of the data the following features were removed:  
+- Several columns contained over 90% NAs. These columns were removed.    
+- The first 7 columns containing test index, user name and time stamps perfectly predicted the outcome due to study design which was not the goal of this study. These columns were removed to focus on the data from the sensors as intended.  
+- By reviewing box plots colored by class for each remaining variable I was able to identify outliers and replace them with the mean value for the classe.  
+- the nearZeroVar function from the Caret package was also used to remove variables with very little change in values and or those with a high occurance of a single value.  
 
 ### Training Data (Model creation):
 With the training data features pruned from 160 to 52 the data was fed into the train function from the Caret package using the following code:
 
-```{r model training, echo = TRUE, include = FALSE}
+```{r model training, echo=TRUE}
 # prepare for multicore use during model building
 cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
 registerDoParallel(cluster)
@@ -210,10 +210,6 @@ rf.mod <- train(classe ~ . ,
 # return R to single core processing
 stopCluster(cluster)
 registerDoSEQ()
-
-# look at quality of model
-rf.mod
-rf.mod$finalModel
 ```
 
 From the code you can see that a random forest method was used with 5 K-fold cross validation to help determine potential out of sample error. The selected features were also preprocessed through Principle Component Analysis as well to help reduce noise due to multicollinearity. A random forest method was used as it seemed like the easiest most robust method described in the lectures. However, creation of the trees took a great deal of time approximately 30 minutes on a single CPU core. The use of multiple CPU cores during tree creation dramatically reduced processing time to approximately 5 minutes. Methods to allow parallel processing came from the following mentor:
