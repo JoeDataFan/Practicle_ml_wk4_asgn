@@ -1,23 +1,11 @@
 ---
-title: "Untitled"
+title: "Prediction of Proper Lifting Technique Using Body Sensors"
 author: "Joe Rubash"
-date: "September 11, 2018"
+date: "September 16, 2018"
 output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-
-
-# Todo================
-- try random forest 
-- rename classe levels from A, B, C, D, E to readable categories
-
-- show measures of accuracy in bar plots... perhaps
-- try stacked models to get best accuracy
-- show decision tree?
-- show clustering?
-
-
 
 ```{r Prepare training data, include=FALSE}
 # clear environment
@@ -47,6 +35,9 @@ data.train.sub[,num] <- data.train.sub %>%
         map(as.character) %>% 
         map(as.numeric)
 
+# make classe variable a factor
+data.train.sub$classe <- as.factor(data.train.sub$classe)
+
 # find dates with month or day in front then convert to date.time then combine
 data.train.sub.mdy <- data.train.sub %>% 
         filter(as.numeric(str_extract(cvtd_timestamp, "^[:digit:]+")) <= 12) %>% 
@@ -59,9 +50,13 @@ data.train.sub.dmy <- data.train.sub %>%
 # recombine data
 data.train.sub <- rbind(data.train.sub.dmy, data.train.sub.mdy)
 
+# remove variables with obvious outliers as this measurement may be compromised
+#data.train.sub <- data.train.sub[, - c(38:40, 45, 51:53)]
+
+
 # replace outlierw with mean value
 data.train.sub$total_accel_forearm[data.train.sub$total_accel_forearm > 90] <- 
-        mean(data.train.sub$total_accel_forearm[data.train.sub$classe == "A"], na.rm = T)
+        mean(data.train.sub$total_accel_forearm[data.train.sub$classe == "A"], na.rm = )
       
 data.train.sub$gyros_forearm_z[data.train.sub$gyros_forearm_z > 50] <- 
         mean(data.train.sub$gyros_forearm_z[data.train.sub$classe == "A"], na.rm = T)
@@ -73,7 +68,7 @@ data.train.sub$gyros_forearm_x[data.train.sub$gyros_forearm_x < -10] <-
         mean(data.train.sub$gyros_forearm_x[data.train.sub$classe == "A"], na.rm = T)
 
 data.train.sub$magnet_dumbbell_y[data.train.sub$magnet_dumbbell_y < -1000] <- 
-        mean(data.train.sub$magnet_dumbbell_y[data.train.sub$classe == "B"], na.rm = T)
+        mean(data.train.sub$magnet_dumbbell_y[data.train.sub$classe == "B"], na.rm = )
 
 data.train.sub$gyros_dumbbell_z[data.train.sub$gyros_dumbbell_z > 90] <- 
         mean(data.train.sub$gyros_dumbbell_z[data.train.sub$classe == "A"], na.rm = T)
@@ -92,6 +87,18 @@ if(length(nzv_cols) > 0) data.train.sub <- data.train.sub[, -nzv_cols]
 # variables are not needed to predict classe or at least should not be used
 # to predict proper lifting (classe)
 data.train.sub <- data.train.sub[, -c(1:7)]
+
+# remove all columns with "total" in the name as these are summaries of perdictors
+#data.train.sub <- data.train.sub[, - c(str_which(names(data.train.sub), "total"))]
+
+# remove all columns with "roll" in the name as these had a large number of zeros
+#data.train.sub <- data.train.sub[, - c(str_which(names(data.train.sub), "roll"))]
+
+# remove all columns with "pitch" in the name as these had a large number of zeros
+#data.train.sub <- data.train.sub[, - c(str_which(names(data.train.sub), "pitch"))]
+
+# remove all columns with "yaw" in the name as these had a large number of zeros
+#data.train.sub <- data.train.sub[, - c(str_which(names(data.train.sub), "yaw"))]
 
 # create validation test set from training data
 #in.valid <- createDataPartition(data.train.sub$classe, p = 0.75, list = T)[[1]]
@@ -160,8 +167,30 @@ M <- abs(cor(data.train.sub[,-52]))
 diag(M) <- 0
 which(M > 0.8, arr.ind = T)
 
+# how many zeros in each column
+t(map_df(data.train.sub, ~ sum(.x == 0)))
+
 ```
-```{r model training}
+## Summary:
+Health and fitness trackers in the form of sensors worn on the body have become a
+common part of our lives. These devices often track what we are doing and how often,
+which leads to gentle reminders to do those healthy activities more often. However, to date, these devices do not tell us how well we are performing the given physical activity. For instance, it would be good to know if you are lifting weights using correct form as incorrectly lifting even lite weights can lead to injury. The purpose of the this data analysis was to determine if data from body sensors could be used to correctly identify when a wieght lifter was lifting incorrectly as described by 5 common mistakes.
+
+## Methods:
+### Study Design:
+Accelerometers were placed on the belt, forearm, arm, and dumbell of 6 participants. The participants then performed barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Feature Selection:
+A great deal of time and care was taken to select the most appropriate features to train the prediction model. After reviewing the structure, distribution and nature of the data the following features were removed:
+- Several columns contained over 90% NAs. These columns were removed.
+- The first 7 columns containing test index, user name and time stamps perfectly predicted the outcome due to study design which was not the goal of this study. These columns were removed to focus on the data from the sensors as intended.
+- By reviewing box plots colored by class for each remaining variable I was able to identify outliers and replace them with the mean value for the classe.
+- the nearZeroVar function from the Caret package was also used to remove variables with very little change in values and or those with a high occurance of a single value.
+
+### Training Data (Model creation):
+With the training data features pruned from 160 to 52 the data was fed into the train function from the Caret package using the following code:
+
+```{r model training, echo = TRUE, include = FALSE}
 # prepare for multicore use during model building
 cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
 registerDoParallel(cluster)
@@ -171,17 +200,12 @@ fitControl <- trainControl(method = "cv",
                            number = 5,
                            allowParallel = TRUE)
 
-# determine principle components
-preproc.train <- preProcess(data.train.sub, method = "pca")
-
-# predictions from PCA
-pred.train.pc <- predict(preproc.train, data.train.sub)
-
 # create random forest model
 rf.mod <- train(classe ~ . ,
                 method ="rf",
                 trControl = fitControl,
-                data = pred.train.pc)
+                preProcess=c("pca"),
+                data = data.train.sub)
 
 # return R to single core processing
 stopCluster(cluster)
@@ -189,16 +213,20 @@ registerDoSEQ()
 
 # look at quality of model
 rf.mod
-rf.mod$resample
-confusionMatrix.train(rf.mod)
-
-# predict with validation data set
-#pred.rf <- predict(rf.mod, valid)
-
-# check accuracy of random forest model on validation set
-#confusionMatrix(pred.rf, as.factor(valid$classe))
+rf.mod$finalModel
 ```
-```{r prepare testing data to run through model}
+
+From the code you can see that a random forest method was used with 5 K-fold cross validation to help determine potential out of sample error. The selected features were also preprocessed through Principle Component Analysis as well to help reduce noise due to multicollinearity. A random forest method was used as it seemed like the easiest most robust method described in the lectures. However, creation of the trees took a great deal of time approximately 30 minutes on a single CPU core. The use of multiple CPU cores during tree creation dramatically reduced processing time to approximately 5 minutes. Methods to allow parallel processing came from the following mentor:
+
+https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md. Thank you.
+
+The summary below from the final model shows that the out of bag (out of sample) estimate of error was 1.67% 
+```{r echo=FALSE}
+# look at quality of model
+rf.mod
+rf.mod$finalModel
+```
+```{r prepare testing data to run through model, include=FALSE}
 # load in data
 data.test <- read.csv("./Data/pml-testing.csv",
                        na.strings = c("", "NA", "#DIV/0!"),
@@ -228,6 +256,9 @@ data.test.sub.dmy <- data.test.sub %>%
 # recombine data
 data.test.sub <- rbind(data.test.sub.dmy, data.test.sub.mdy)
 
+# remove variables with obvious outliers as this measurement may be compromised
+#data.test.sub <- data.test.sub[, - c(38:40, 45, 51:53)]
+
 # replace outlierw with mean value
 data.test.sub$total_accel_forearm[data.test.sub$total_accel_forearm > 90] <- 
         mean(data.test.sub$total_accel_forearm[data.test.sub$classe == "A"], na.rm = T)
@@ -254,7 +285,6 @@ data.test.sub$gyros_dumbbell_x[data.test.sub$gyros_dumbbell_x < -50] <-
         mean(data.test.sub$gyros_dumbbell_x[data.test.sub$classe == "A"], na.rm = T)
 
 # remove same columns with near zero variance found in training set
-nzv_cols <- nearZeroVar(data.train.sub)
 if(length(nzv_cols) > 0) data.test.sub <- data.test.sub[, -nzv_cols]
 
 # remove the first 5 columns as "X" describes classe perfectly and the other 
@@ -262,24 +292,33 @@ if(length(nzv_cols) > 0) data.test.sub <- data.test.sub[, -nzv_cols]
 # to predict proper lifting (classe)
 data.test.sub <- data.test.sub[, -c(1:7)]
 
+# remove all columns with "total" in the name as these are summaries of perdictors
+#data.test.sub <- data.test.sub[, - c(str_which(names(data.test.sub), "total"))]
+
+# remove all columns with "roll" in the name as these had a large number of zeros
+#data.test.sub <- data.test.sub[, - c(str_which(names(data.test.sub), "roll"))]
+
+# remove all columns with "pitch" in the name as these had a large number of zeros
+#data.test.sub <- data.test.sub[, - c(str_which(names(data.test.sub), "pitch"))]
+
+# remove all columns with "yaw" in the name as these had a large number of zeros
+#data.test.sub <- data.test.sub[, - c(str_which(names(data.test.sub), "yaw"))]
+
+# sort data by problem_id
+data.test.sub <- data.test.sub %>% 
+        arrange(problem_id)
 ```
-```{r run test data through training model}
+```{r run test data through training model, include=FALSE}
 # predictions from PCA (important to use preprocessed PCA object from training data)
-pred.test.pc <- predict(preproc.train, data.test.sub)
+#pred.test.pc <- predict(preproc.train, data.test.sub)
 
 # predict with validation data set
-pred.test.rf <- predict(rf.mod, pred.test.pc)
-
+pred.test.rf <- predict(rf.mod, data.test.sub)
 print(pred.test.rf)
 ```
 
+### Testing Newdata:
+To evaluate 20 new observations exactly the same preprocessing steps taken on the training data were performed on the new test data. Most importantly, before running the data through the random forest model the test data was sorted by the "problem_id" so the predicted values would be in the correct order as expected in the final quiz. The predict function was then used with the random forest model and the new test data to generate classe predictions. The model correctly predicted 100% of the classes in this data set.   
 
-
-# Summary:
-
-# Methods:
-
-
-# Results:
-
-# Discussion:
+## Conclusions:
+This study and data analysis shows that it may be possible to correctly determine when someone is making typical weight lifting mistakes using multiple sensors located along the arm, forearm, waist and dumbell. Implementing this technology in a seamless, easy to use and interpret way is the next challenge.
